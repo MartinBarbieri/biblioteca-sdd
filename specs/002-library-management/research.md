@@ -24,7 +24,8 @@ La constitución (Principio III) requiere separación de responsabilidades. Las 
 
 | Entidad | Método de dominio clave |
 |---------|------------------------|
-| `Ejemplar` | `esPrestable(): boolean` — retorna `true` si `estadoActivo=true AND copyrightVigente=true AND sin préstamo activo` |
+| `Ejemplar` | `esPrestablePorEstado(): boolean` — retorna `true` si `estadoEjemplar=ACTIVO AND copyrightVigente=true`. No accede a préstamos. |
+| `DisponibilidadService` | `esDisponible(idEjemplar): boolean` — combina `ejemplar.esPrestablePorEstado()` + ausencia de `Prestamo` activo para ese `idEjemplar` (FR-023) |
 | `Prestamo` | `registrarDevolucion(fechaDevolucion): void` — cierra el préstamo y lanza excepción si ya estaba cerrado |
 | `Prestamo` | `esDevolucionAnticipada(fecha): boolean` — compara con `fechaFinPrevista` |
 | `Cliente` | `estaHabilitado(): boolean` — retorna `estadoActivo=true` |
@@ -164,7 +165,8 @@ LIMIT :pageSize OFFSET :offset;
 
 | Capa | Framework | Qué se testea |
 |------|-----------|---------------|
-| Domain | JUnit 5 | Reglas de negocio: `esPrestable()`, `registrarDevolucion()`, puntos anticipados |
+| Domain | JUnit 5 | Reglas de negocio: `esPrestablePorEstado()`, `registrarDevolucion()`, puntos anticipados |
+| Application / DisponibilidadService | JUnit 5 + Mockito | `esDisponible()`: combina estado interno + ausencia de préstamo activo |
 | Application | JUnit 5 + Mockito | Coordinación de casos de uso, flujos de error |
 | Infrastructure | Spring Boot Test + Testcontainers (PostgreSQL) | Repositorios JPA, queries de disponibilidad, índices |
 | API | `@WebMvcTest` + MockMvc | Controladores: request/response, validación HTTP codes |

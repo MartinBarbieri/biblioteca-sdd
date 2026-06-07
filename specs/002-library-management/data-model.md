@@ -26,10 +26,19 @@ Representa un ejemplar físico único prestable del catálogo. Un mismo ISBN pue
 
 **Regla de dominio clave**:
 ```
-esPrestable() = estadoEjemplar == ACTIVO
-             AND copyrightVigente == true
-             AND no existe Prestamo activo para este idEjemplar
+// Ejemplar solo conoce su estado interno — no accede a préstamos (Principio III)
+esPrestablePorEstado() = estadoEjemplar == ACTIVO
+                       AND copyrightVigente == true
 ```
+
+**Disponibilidad completa** (calculada por `DisponibilidadService`):
+```
+esDisponible(idEjemplar) = ejemplar.esPrestablePorEstado()
+                         AND no existe Prestamo activo para idEjemplar
+```
+> `Ejemplar` no consulta ni conoce préstamos activos. La composición de ambas condiciones
+> es responsabilidad de `DisponibilidadService` (o `PrestamoService`). Esto respeta la
+> separación de responsabilidades entre entidades (Principio III).
 
 **Nota**: `copyrightVigente` es un booleano obligatorio verificado manualmente por el bibliotecario al dar de alta o modificar un ejemplar (FR-033). No hay verificación automática contra registro legal externo en v1.
 
@@ -305,7 +314,8 @@ CREATE INDEX idx_prestamos_activos_por_cliente
 | `categoriaLibro` ∈ enum | FR-005 | Java enum + BD (CHECK) |
 | `copyrightVigente` es booleano obligatorio | FR-004, FR-033 | Bean Validation (`@NotNull`) |
 | `dni` único por cliente | FR-012 | BD (UNIQUE) + Service |
-| Ejemplar prestable = activo + copyright + sin préstamo activo | FR-023 | `Ejemplar.esPrestable()` + Service |
+| Ejemplar prestable por estado interno (activo + copyright) | FR-023 (parcial) | `Ejemplar.esPrestablePorEstado()` |
+| Disponibilidad completa = prestable por estado + sin préstamo activo | FR-023 | `DisponibilidadService.esDisponible()` |
 | No prestar si cliente inactivo | FR-030 | `PrestamoService` |
 | No prestar si ejemplar no disponible | FR-018, FR-019 | `PrestamoService` |
 | No devolver si préstamo cerrado | FR-031 | `Prestamo.registrarDevolucion()` |
@@ -332,7 +342,7 @@ CREATE INDEX idx_prestamos_activos_por_cliente
 | FR-004 (campos ejemplar) | `Ejemplar` + `V2__create_ejemplares.sql` |
 | FR-011 (campos cliente) | `Cliente` + `V1__create_clientes.sql` |
 | FR-015 (campos préstamo) | `Prestamo` + `V3__create_prestamos.sql` |
-| FR-023 (regla disponibilidad) | `Ejemplar.esPrestable()` |
+| FR-023 (regla disponibilidad) | `Ejemplar.esPrestablePorEstado()` + `DisponibilidadService.esDisponible()` |
 | FR-026 (paginación 100) | `PageRequest` en `EjemplarController` |
 | FR-034 (banco fotos) | `FotoPerfilAnimal` + `V5__seed_fotos_perfil_animal.sql` |
 | SC-006 (95% ≤ 2s) | `V6__create_indexes.sql` |

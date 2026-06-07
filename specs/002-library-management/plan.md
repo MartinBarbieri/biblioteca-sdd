@@ -41,7 +41,7 @@ Desarrollar un sistema full-stack de gestión de biblioteca que permita a biblio
 | Principio | Estado | Notas |
 |-----------|--------|-------|
 | I – Spec-Driven | ✅ PASS | Todos los FRs trazados a spec.md (FR-001–FR-034) |
-| II – Real OO Domain | ✅ PASS | Entidades con comportamiento: `Ejemplar.esPrestable()`, `Prestamo.registrarDevolucion()` |
+| II – Real OO Domain | ✅ PASS | Entidades con comportamiento: `Ejemplar.esPrestablePorEstado()`, `Prestamo.registrarDevolucion()`; disponibilidad completa en `DisponibilidadService` |
 | III – Separation of Concerns | ✅ PASS | Capas: domain / application / infrastructure / api bien delimitadas |
 | IV – Code Quality | ✅ PASS | Restricciones explicitadas: sin lógica en controllers, sin instanceof innecesario |
 | V – Value Objects & Enums | ✅ PASS | `CategoriaLibro`, `EstadoEjemplar`, `EstadoPrestamo` como enums |
@@ -120,7 +120,8 @@ backend/
     │           ├── V2__create_ejemplares.sql
     │           ├── V3__create_prestamos.sql
     │           ├── V4__create_fotos_perfil_animal.sql
-    │           └── V5__seed_fotos_perfil_animal.sql
+    │           ├── V5__seed_fotos_perfil_animal.sql
+    │           └── V6__create_indexes.sql
     └── test/
         └── java/com/biblioteca/
             ├── domain/
