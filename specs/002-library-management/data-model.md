@@ -86,15 +86,29 @@ Representa la asignación temporal de un ejemplar a un cliente.
 
 **Reglas de dominio**:
 ```
+// Prestamo.registrarDevolucion() — responsabilidad de la ENTIDAD
 registrarDevolucion(fecha):
-  - Lanza excepción si estadoPrestamo == CERRADO   [FR-031]
+  - Lanza excepción si estadoPrestamo == CERRADO                          [FR-031]
   - Establece fechaDevolucion = fecha
   - Establece estadoPrestamo = CERRADO
-  - Si fecha < fechaFinPrevista → devolución anticipada → suma 10 pts al cliente  [FR-021]
+  // NO suma puntos aquí: la entidad no conoce a Cliente
 
-esDevolucionAnticipada(fecha):
+esDevolucionAnticipada(fecha):                                            [FR-021]
   = fecha.isBefore(fechaFinPrevista)
+  // Retorna true/false; quien llama (PrestamoService) suma los 10 pts al Cliente
 ```
+
+> **Separación de responsabilidades (Principio III)**: `Prestamo` cierra el préstamo
+> y expone si fue anticipada, pero **no tiene referencia a `Cliente`** y por tanto
+> no puede modificar sus puntos. Esa orquestación pertenece a `PrestamoService`:
+>
+> ```
+> // PrestamoService.registrarDevolucion()
+> prestamo.registrarDevolucion(fecha)
+> if (prestamo.esDevolucionAnticipada(fecha)) {
+>     cliente.sumarPuntos(10)           // [FR-021]
+> }
+> ```
 
 ---
 

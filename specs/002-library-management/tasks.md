@@ -80,9 +80,10 @@
 
 - [ ] T026 Crear `backend/src/main/java/com/biblioteca/application/service/SelectorFotoPerfilAnimal.java` con método `seleccionar(String nombre): String` que normaliza inicial, consulta `FotoPerfilAnimalRepository` y retorna `rutaFoto`; usa fallback `'*'` si no hay coincidencia — FR-013, FR-014, FR-034
 - [ ] T027 Crear `backend/src/main/java/com/biblioteca/application/service/EjemplarService.java` con métodos: `registrar(EjemplarRequest)`, `actualizar(Long id, EjemplarRequest)`, `darDeBaja(Long id)` (verifica no tener préstamos activos), `buscar(BusquedaRequest, Pageable)` — FR-001–FR-007, FR-025–FR-027
-- [ ] T028 [P] Crear `backend/src/main/java/com/biblioteca/application/service/ClienteService.java` con métodos: `registrar(ClienteRequest)` (valida DNI único + asigna foto via `SelectorFotoPerfilAnimal`), `actualizar(Long id, ClienteRequest)`, `darDeBaja(Long id)` — FR-008–FR-014
+- [ ] T028 Crear `backend/src/main/java/com/biblioteca/application/service/ClienteService.java` con métodos: `registrar(ClienteRequest)` (valida DNI único + asigna foto via `SelectorFotoPerfilAnimal`), `actualizar(Long id, ClienteRequest)`, `darDeBaja(Long id)` — FR-008–FR-014 **| Depende de T026** (usa `SelectorFotoPerfilAnimal`)
 - [ ] T029 Crear `backend/src/main/java/com/biblioteca/application/service/DisponibilidadService.java` con método `esDisponible(Long idEjemplar): boolean` que combina `ejemplar.esPrestablePorEstado()` con ausencia de préstamo activo en el repositorio — FR-022, FR-023, FR-024
-- [ ] T030 Crear `backend/src/main/java/com/biblioteca/application/service/PrestamoService.java` con métodos: `registrar(PrestamoRequest)` (valida cliente habilitado, verifica disponibilidad via `DisponibilidadService`, crea préstamo), `registrarDevolucion(Long idPrestamo, LocalDate fecha)` (delega en `Prestamo.registrarDevolucion()`, suma puntos si anticipada) — FR-015–FR-021, FR-029–FR-032
+- [ ] T030a Crear `backend/src/main/java/com/biblioteca/application/service/PrestamoService.java` — método `registrar(PrestamoRequest)`: valida `cliente.estaHabilitado()` (FR-030), verifica disponibilidad via `DisponibilidadService.esDisponible()` (FR-018, FR-019), verifica límite activos del cliente (FR-017), persiste nuevo Prestamo en estado ACTIVO — FR-015–FR-017, FR-029
+- [ ] T030b **Depende de T030a** Agregar método `registrarDevolucion(Long idPrestamo, LocalDate fecha)` a `PrestamoService`: delega `prestamo.registrarDevolucion(fecha)` (entidad cierra + valida no duplicar), luego si `prestamo.esDevolucionAnticipada(fecha)` suma 10 puntos al cliente (Principio III — servicio orquesta, entidad no toca a Cliente) — FR-020, FR-021, FR-031, FR-032
 
 **Checkpoint**: Todos los servicios compilan. Los métodos coordinan sin duplicar lógica de dominio.
 
@@ -94,13 +95,16 @@
 
 **Depende de**: Fase 4
 
-- [ ] T031 Crear DTOs en `backend/src/main/java/com/biblioteca/api/dto/`: `EjemplarRequest.java`, `EjemplarResponse.java`, `ClienteRequest.java`, `ClienteResponse.java`, `PrestamoRequest.java`, `PrestamoResponse.java`, `DevolucionRequest.java`, `DevolucionResponse.java`, `BusquedaEjemplarRequest.java`, `PaginaResponse.java`, `ErrorResponse.java` — contracts/openapi.yaml schemas
+- [ ] T031a Crear DTOs compartidos en `backend/src/main/java/com/biblioteca/api/dto/`: `PaginaResponse.java` (genérico), `ErrorResponse.java` — contracts/openapi.yaml schemas
+- [ ] T031b [P] Crear DTOs de ejemplar: `EjemplarRequest.java`, `EjemplarResponse.java`, `BusquedaEjemplarRequest.java` — openapi.yaml schemas EjemplarRequest, EjemplarResponse
+- [ ] T031c [P] Crear DTOs de cliente: `ClienteRequest.java`, `ClienteResponse.java` — openapi.yaml schemas ClienteRequest, ClienteResponse
+- [ ] T031d [P] Crear DTOs de préstamo: `PrestamoRequest.java`, `PrestamoResponse.java`, `DevolucionRequest.java`, `DevolucionResponse.java` — openapi.yaml schemas PrestamoRequest, DevolucionResponse
 - [ ] T032 Crear `backend/src/main/java/com/biblioteca/api/controller/EjemplarController.java` con endpoints: `GET /ejemplares`, `POST /ejemplares`, `GET /ejemplares/{id}`, `PUT /ejemplares/{id}`, `DELETE /ejemplares/{id}`; normalizar `page <= 0` a `0`; máximo `size=100` — FR-001–FR-007, FR-025–FR-027, openapi.yaml
 - [ ] T033 [P] Crear `backend/src/main/java/com/biblioteca/api/controller/ClienteController.java` con endpoints: `GET /clientes`, `POST /clientes`, `GET /clientes/{id}`, `PUT /clientes/{id}`, `DELETE /clientes/{id}` — FR-008–FR-014, openapi.yaml
 - [ ] T034 [P] Crear `backend/src/main/java/com/biblioteca/api/controller/PrestamoController.java` con endpoints: `GET /prestamos` (informe activos paginado), `POST /prestamos`, `POST /prestamos/{id}/devolucion` — FR-015–FR-021, FR-028, FR-031, openapi.yaml
 - [ ] T035 [P] Crear `backend/src/main/java/com/biblioteca/api/controller/DisponibilidadController.java` con endpoint: `GET /ejemplares/{id}/disponibilidad` que delega en `DisponibilidadService` — FR-022, FR-023, openapi.yaml
 - [ ] T036 Crear `backend/src/main/java/com/biblioteca/api/GlobalExceptionHandler.java` con `@ControllerAdvice` que mapea excepciones de negocio (ejemplar no disponible, cliente inactivo, préstamo cerrado, DNI duplicado, idEjemplar duplicado) a respuestas HTTP con `ErrorResponse` y códigos 409/400/404 — openapi.yaml ErrorResponse, edge cases
-- [ ] T037 [P] Configurar springdoc-openapi en `backend/src/main/resources/application.properties` con path `/v3/api-docs` y SwaggerUI en `/swagger-ui.html` — plan.md Technical Context
+- [ ] T037 [P] Configurar springdoc-openapi en `backend/src/main/resources/application.properties` con path `/v3/api-docs` y SwaggerUI en `/swagger-ui.html` — plan.md Technical Context **(agrega configuración al archivo creado en T002)**
 
 **Checkpoint**: `GET /ejemplares`, `POST /prestamos`, `POST /prestamos/{id}/devolucion` responden correctamente desde Swagger UI.
 
@@ -120,7 +124,7 @@
 
 ### Tests de servicios (depende de Fases 2 y 4)
 
-- [ ] T041 Crear `backend/src/test/java/com/biblioteca/application/PrestamoServiceTest.java` con Mockito, casos: registrar préstamo exitoso; rechazar si cliente inactivo; rechazar si ejemplar no disponible; registrar devolución anticipada suma 10 puntos; devolución no anticipada no suma puntos — US1, FR-018–FR-021, FR-030
+- [ ] T041 Crear `backend/src/test/java/com/biblioteca/application/PrestamoServiceTest.java` con Mockito, casos: registrar préstamo exitoso; rechazar si cliente inactivo (FR-030); rechazar si ejemplar no disponible (FR-018, FR-019); **rechazar si cliente alcanzó límite de préstamos activos (FR-017)**; registrar devolución anticipada suma exactamente 10 puntos al cliente (FR-021); devolución no anticipada no suma puntos; **préstamo cerrado persiste en BD tras devolución — historial no se elimina (FR-032)** — US1, FR-017–FR-021, FR-030, FR-032
 - [ ] T042 [P] Crear `backend/src/test/java/com/biblioteca/application/EjemplarServiceTest.java` con Mockito, casos: dar de baja sin préstamos activos; rechazar baja con préstamos activos; buscar con filtros; buscar sin filtros retorna paginado — US2, FR-007, FR-025, FR-026
 - [ ] T043 [P] Crear `backend/src/test/java/com/biblioteca/application/ClienteServiceTest.java` con Mockito, casos: registrar asigna foto correcta; registrar con inicial sin foto usa fallback; rechazar DNI duplicado; actualizar preserva puntos — US3, FR-012–FR-014
 - [ ] T044 [P] Crear `backend/src/test/java/com/biblioteca/application/DisponibilidadServiceTest.java` con Mockito, casos: disponible cuando activo + copyright + sin préstamo; no disponible por préstamo activo; no disponible por copyright; no disponible por inactivo — FR-022, FR-023
@@ -131,7 +135,7 @@
 
 ### Tests de integración de API (depende de Fases 2–5)
 
-- [ ] T046 Crear `backend/src/test/java/com/biblioteca/api/EjemplarControllerTest.java` con `@WebMvcTest`, casos: POST crea ejemplar 201; POST con páginas=0 retorna 400; DELETE con préstamo activo retorna 409; GET con page=-1 normaliza a página 0 — quickstart.md escenarios 1–3, 17, 20
+- [ ] T046 Crear `backend/src/test/java/com/biblioteca/api/EjemplarControllerTest.java` con `@WebMvcTest`, casos: POST crea ejemplar 201; POST con páginas=0 retorna 400; **POST sin `copyrightVigente` retorna 400 (FR-033)**; DELETE con préstamo activo retorna 409; GET con page=-1 normaliza a página 0 — quickstart.md escenarios 1–3, 17, 20, FR-033
 - [ ] T047 [P] Crear `backend/src/test/java/com/biblioteca/api/PrestamoControllerTest.java` con `@WebMvcTest`, casos: POST crea préstamo 201; POST ejemplar no disponible retorna 409 EJEMPLAR_NO_DISPONIBLE; POST devolucion anticipada retorna devolucionAnticipada=true y puntosOtorgados=10; POST devolucion duplicada retorna 409 PRESTAMO_YA_CERRADO — quickstart.md escenarios 6–10
 
 **Checkpoint**: Todos los tests pasan en verde. Cobertura de reglas de negocio al 100%.
@@ -165,10 +169,10 @@
 **Depende de**: Fase 7
 
 - [ ] T057 [US4] Crear `frontend/src/pages/BusquedaEjemplaresPage.tsx` como punto de entrada principal: formulario con filtros opcionales (título, autor, categoría, soloDisponibles), tabla paginada de resultados, estado "sin resultados" cuando lista vacía — US4-Scenario 1,2,5,6, NFR-001, FR-025, FR-026
-- [ ] T058 [US2] Crear `frontend/src/pages/EjemplaresPage.tsx` con tabla de ejemplares, botón "Nuevo", acciones editar/dar de baja por fila, y `EjemplarForm.tsx` modal/inline con campos validados incluyendo checkbox `copyrightVigente` — US2, FR-001–FR-007
-- [ ] T059 [P] [US2] Crear `frontend/src/components/EjemplarForm.tsx` con campos: título, autor, cantidadPaginas (min=1), editorial, ISBN, perteneceSaga, categoriaLibro (select con 4 opciones), copyrightVigente (checkbox obligatorio, etiqueta "Verificado por bibliotecario") — FR-004, FR-005, FR-033
-- [ ] T060 [US3] Crear `frontend/src/pages/ClientesPage.tsx` con tabla de clientes, botón "Nuevo", acciones editar/dar de baja, muestra `fotoPerfil` asignada automáticamente — US3, FR-008–FR-014
-- [ ] T061 [P] [US3] Crear `frontend/src/components/ClienteForm.tsx` con campos: nombre, apellido, DNI, fechaNacimiento; sin campo fotoPerfil (se asigna en backend); acepta caracteres especiales en nombre/apellido — FR-011, FR-012, edge cases
+- [ ] T059 [US2] Crear `frontend/src/components/EjemplarForm.tsx` con campos: título, autor, cantidadPaginas (min=1), editorial, ISBN, perteneceSaga, categoriaLibro (select con 4 opciones), copyrightVigente (checkbox obligatorio, etiqueta "Verificado por bibliotecario") — FR-004, FR-005, FR-033
+- [ ] T058 [US2] **Depende de T059** Crear `frontend/src/pages/EjemplaresPage.tsx` con tabla de ejemplares, botón "Nuevo", acciones editar/dar de baja por fila, embebiendo `EjemplarForm` con campos validados incluyendo checkbox `copyrightVigente` — US2, FR-001–FR-007
+- [ ] T061 [US3] Crear `frontend/src/components/ClienteForm.tsx` con campos: nombre, apellido, DNI, fechaNacimiento; sin campo fotoPerfil (se asigna en backend); acepta caracteres especiales en nombre/apellido — FR-011, FR-012, edge cases
+- [ ] T060 [US3] **Depende de T061** Crear `frontend/src/pages/ClientesPage.tsx` con tabla de clientes, botón "Nuevo", acciones editar/dar de baja, embebiendo `ClienteForm`; muestra `fotoPerfil` asignada automáticamente — US3, FR-008–FR-014
 - [ ] T062 [US1] Crear `frontend/src/pages/NuevoPrestamoPage.tsx` con selección de cliente (por DNI o búsqueda), selección de ejemplar disponible, campos fechaInicio y fechaFinPrevista, validación pre-submit — US1-Scenario 1,2, FR-015–FR-019
 - [ ] T063 [US1] Crear `frontend/src/pages/DevolucionPage.tsx` con búsqueda de préstamo activo por ID o cliente, campo fechaDevolucion, muestra resultado post-devolución (anticipada + puntos otorgados) — US1-Scenario 3,4, FR-020, FR-021
 - [ ] T064 [US4] Crear `frontend/src/pages/InformePrestamosPage.tsx` con tabla paginada de préstamos activos mostrando ejemplar, cliente y fechas; sin préstamos muestra estado vacío — US4-Scenario 3,4, FR-028
@@ -238,9 +242,9 @@ Fase 7 (Setup FE) ←── puede iniciar desde Fase 5 completa
 
 | Historia | FR cubiertos | Fase(s) principal(es) | Tareas |
 |----------|--------------|-----------------------|--------|
-| US1 – Préstamos y devoluciones | FR-015–FR-021, FR-029–FR-032 | 4, 5, 6, 8, 9 | T029–T031, T034, T039, T041, T047, T062–T063, T067–T068, T072 |
-| US2 – Catálogo de libros | FR-001–FR-007 | 2, 3, 4, 5, 6, 8, 9 | T008, T013, T018, T027, T032, T038, T042, T046, T058–T059, T065, T071 |
-| US3 – Clientes y foto automática | FR-008–FR-014, FR-034 | 2, 3, 4, 5, 6, 8, 9 | T009, T011, T012, T019, T021, T025–T026, T028, T033, T040, T043, T060–T061, T066, T071 |
+| US1 – Préstamos y devoluciones | FR-015–FR-021, FR-029–FR-032 | 4, 5, 6, 8, 9 | T029, T030a, T030b, T031d, T034, T039, T041, T047, T062–T063, T067–T068, T072 |
+| US2 – Catálogo de libros | FR-001–FR-007 | 2, 3, 4, 5, 6, 8, 9 | T008, T013, T018, T027, T031b, T032, T038, T042, T046, T059, T058, T065, T071 |
+| US3 – Clientes y foto automática | FR-008–FR-014, FR-034 | 2, 3, 4, 5, 6, 8, 9 | T009, T011, T012, T019, T021, T025–T026, T028, T031c, T033, T040, T043, T061, T060, T066, T071 |
 | US4 – Disponibilidad e informes | FR-022–FR-029 | 2, 4, 5, 6, 8, 9 | T010, T020, T024, T029, T035, T044–T045, T057, T064, T069–T070, T073–T074 |
 | Setup + Infra + Tests transversales | NFR-003, SC-006 | 1, 3, 6, 7, 10 | T001–T004, T017, T045, T075 |
 
@@ -248,7 +252,7 @@ Fase 7 (Setup FE) ←── puede iniciar desde Fase 5 completa
 
 ## Alcance MVP sugerido
 
-**MVP = Fase 1 + Fase 2 + Fase 3 + Fase 4 (T029–T030) + Fase 5 (T031–T036) + Tests US1/US2**
+**MVP = Fase 1 + Fase 2 + Fase 3 + Fase 4 (T029, T030a, T030b) + Fase 5 (T031a–T031d, T032–T036) + Tests US1/US2**
 
 Esto entrega el flujo central operable: crear ejemplar → crear cliente → registrar préstamo → registrar devolución → verificar disponibilidad.
 

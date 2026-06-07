@@ -167,7 +167,11 @@ paths:
   /clientes:
     get:
       tags: [Clientes]
-      summary: Listar clientes
+      summary: Listar clientes con filtros opcionales
+      description: |
+        Devuelve clientes paginados. El parámetro `dni` permite localizar un cliente
+        exacto para flujos como la pantalla de nuevo préstamo (T062). El parámetro
+        `busqueda` hace búsqueda parcial en nombre/apellido.
       operationId: listarClientes
       parameters:
         - $ref: '#/components/parameters/Page'
@@ -177,6 +181,16 @@ paths:
           schema:
             type: boolean
             default: true
+        - name: dni
+          in: query
+          description: "Búsqueda exacta por DNI. Útil para seleccionar cliente en registro de préstamo."
+          schema:
+            type: string
+        - name: busqueda
+          in: query
+          description: "Búsqueda parcial en nombre o apellido (case-insensitive)."
+          schema:
+            type: string
       responses:
         "200":
           description: Lista paginada de clientes
@@ -283,14 +297,27 @@ paths:
   /prestamos:
     get:
       tags: [Prestamos]
-      summary: Informe de préstamos activos
+      summary: Listar préstamos activos con filtros opcionales
       description: |
-        Lista todos los préstamos en estado ACTIVO con ejemplar y cliente asociado.
-        Usado para el informe operativo (FR-028, US4-Scenario 3).
+        Lista préstamos en estado ACTIVO con ejemplar y cliente asociado.
+        Usado para el informe operativo (FR-028, US4-Scenario 3) y para buscar
+        el préstamo activo de un cliente en la pantalla de devolución (T063).
       operationId: listarPrestamosActivos
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
+        - name: idCliente
+          in: query
+          description: "Filtra préstamos activos de un cliente específico. Usado en la pantalla de devolución para localizar préstamos activos del cliente."
+          schema:
+            type: integer
+            format: int64
+        - name: idEjemplar
+          in: query
+          description: "Filtra préstamos activos de un ejemplar específico."
+          schema:
+            type: integer
+            format: int64
       responses:
         "200":
           description: Lista paginada de préstamos activos

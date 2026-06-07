@@ -69,7 +69,7 @@ CREATE INDEX idx_ejemplares_disponibilidad ON ejemplares (estado_ejemplar, copyr
     WHERE estado_ejemplar = 'ACTIVO' AND copyright_vigente = true;
 
 -- Préstamos activos: joins rápidos para determinar disponibilidad
-CREATE INDEX idx_prestamos_activos_ejemplar ON prestamos (id_ejemplar)
+CREATE INDEX idx_prestamos_activos_por_ejemplar ON prestamos (id_ejemplar)
     WHERE estado_prestamo = 'ACTIVO';
 ```
 
