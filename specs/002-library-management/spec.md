@@ -70,10 +70,13 @@ Como cliente y bibliotecario, quiero consultar disponibilidad de libros y obtene
 
 **Acceptance Scenarios**:
 
-1. **Given** un libro con o sin prestamos activos, **When** un usuario consulta su disponibilidad con filtro por título, autor o categoría, **Then** el sistema responde en no mas de 2 segundos con estado claro (disponible/no disponible).
+1. **Given** un libro con o sin prestamos activos, **When** un usuario consulta su disponibilidad con filtro por título, autor o categoría, **Then** el sistema responde en <= 2 segundos en al menos el 95% de las consultas con estado claro (disponible/no disponible).
 2. **Given** multiples filtros seleccionados (ej: categoría=juveniles AND autor=conocido), **When** se ejecuta la búsqueda, **Then** el sistema retorna solo ejemplares que coincidan con TODOS los criterios.
 3. **Given** multiples prestamos activos, **When** el bibliotecario genera el informe de libros prestados, **Then** el informe lista cada ejemplar actualmente prestado y el cliente asociado.
 4. **Given** que un prestamo fue devuelto, **When** se vuelve a generar el informe, **Then** ese ejemplar no aparece como activo en préstamos.
+5. **Given** que se ejecuta una busqueda con criterios que no tienen coincidencias, **When** el usuario confirma la consulta, **Then** el sistema retorna una lista vacia sin error y mantiene metadatos de paginacion.
+6. **Given** que el usuario ejecuta una busqueda sin filtros, **When** el sistema obtiene resultados del catalogo, **Then** devuelve resultados paginados con un maximo de 100 ejemplares por pagina.
+7. **Given** que un ejemplar tiene prestamo activo y la busqueda incluye no disponibles, **When** el usuario consulta disponibilidad, **Then** el ejemplar aparece con estado "No disponible".
 
 ### Edge Cases
 
@@ -82,9 +85,13 @@ Como cliente y bibliotecario, quiero consultar disponibilidad de libros y obtene
 - Intento de baja de libro con prestamo activo.
 - Devolucion duplicada de un mismo prestamo ya cerrado.
 - Nombre de cliente con inicial sin foto de animal disponible: **RESUELTO** → Se asigna foto neutral y se registra en logs.
-- Nombre de cliente con caracteres especiales o espacios iniciales.
-- Libro con cantidad de paginas cero o negativa.
-- Consulta de disponibilidad cuando existen multiples prestamos historicos del mismo libro.
+- Nombre y apellido de cliente con caracteres especiales validos (incluyendo apostrofe, guion y espacios internos) deben aceptarse.
+- Libro con cantidad de paginas menor o igual a cero debe rechazarse.
+- Intento de registrar un ejemplar con idEjemplar duplicado debe rechazarse.
+- Intento de prestamo para cliente inactivo debe rechazarse.
+- Devolucion duplicada de un mismo prestamo ya cerrado debe rechazarse explicitamente.
+- Solicitud de pagina menor o igual a cero en resultados paginados debe normalizarse a pagina 1.
+- Consulta de disponibilidad con multiples prestamos historicos del mismo libro debe conservar historial y considerar solo prestamo activo para disponibilidad actual.
 - Intento de prestamo de libro con copyright no vigente.
 
 ## Requirements *(mandatory)*
@@ -94,7 +101,7 @@ Como cliente y bibliotecario, quiero consultar disponibilidad de libros y obtene
 - **FR-001**: El sistema MUST permitir registrar un nuevo ejemplar (libro físico) con todos los campos obligatorios definidos por negocio.
 - **FR-002**: El sistema MUST permitir modificar los datos de un ejemplar existente.
 - **FR-003**: El sistema MUST permitir dar de baja un ejemplar.
-- **FR-004**: El sistema MUST almacenar para cada ejemplar: idEjemplar (único), titulo, autor, cantidad de paginas, editorial, ISBN, indicador de saga, categoria y estado de copyright vigente. Múltiples ejemplares del mismo ISBN tendrán ID únicos distintos.
+- **FR-004**: El sistema MUST almacenar para cada ejemplar: idEjemplar (único), titulo, autor, cantidad de paginas, editorial, ISBN, indicador de saga, categoria y copyrightVigente (booleano obligatorio). Múltiples ejemplares del mismo ISBN tendran ID unicos distintos.
 - **FR-005**: El sistema MUST restringir categoria de libro a: infantiles, juveniles, adultos o conocimiento.
 - **FR-006**: El sistema MUST validar que cada idEjemplar sea único dentro del catalogo (no es ISBN lo que debe ser único, sino cada ejemplar físico).
 - **FR-007**: El sistema MUST impedir que un ejemplar con prestamos activos sea dado de baja operativamente.
@@ -112,16 +119,25 @@ Como cliente y bibliotecario, quiero consultar disponibilidad de libros y obtene
 - **FR-019**: El sistema MUST rechazar prestamos cuando el libro no este disponible.
 - **FR-020**: El sistema MUST registrar devoluciones y actualizar el estado del prestamo a cerrado.
 - **FR-021**: El sistema MUST sumar 10 puntos al cliente cuando la devolucion se registre antes de la fecha final prevista.
-- **FR-021**: El sistema MUST permitir consultar disponibilidad de un ejemplar considerando prestamos activos.
-- **FR-022**: El sistema MUST permitir búsqueda de ejemplares disponibles por: título (búsqueda parcial), autor, categoría, estado de disponibilidad. Los filtros se aplican con lógica AND (todos los criterios seleccionados deben coincidir).
-- **FR-023**: El sistema MUST generar en cualquier momento un informe de libros actualmente prestados con identificacion del cliente asociado.
-- **FR-024**: El sistema MUST impedir considerar disponible para prestamo cualquier libro con copyright no vigente.
+- **FR-022**: El sistema MUST permitir consultar disponibilidad de un ejemplar considerando prestamos activos.
+- **FR-023**: El sistema MUST definir disponibilidad asi: disponible = estadoActivo=true AND copyrightVigente=true AND sin prestamo activo.
+- **FR-024**: El sistema MUST mostrar un ejemplar con prestamo activo como "No disponible" cuando la busqueda incluya estados no disponibles.
+- **FR-025**: El sistema MUST permitir busqueda de ejemplares por: titulo (busqueda parcial), autor, categoria, estado de disponibilidad. Los filtros se aplican con logica AND (todos los criterios seleccionados deben coincidir).
+- **FR-026**: El sistema MUST permitir busqueda sin filtros y devolver resultados paginados con maximo de 100 ejemplares por pagina.
+- **FR-027**: El sistema MUST normalizar solicitudes de pagina menor o igual a cero a pagina 1.
+- **FR-028**: El sistema MUST generar en cualquier momento un informe de libros actualmente prestados con identificacion del cliente asociado.
+- **FR-029**: El sistema MUST impedir considerar disponible para prestamo cualquier libro con copyright no vigente.
+- **FR-030**: El sistema MUST rechazar prestamos para clientes inactivos.
+- **FR-031**: El sistema MUST rechazar devoluciones duplicadas de un prestamo ya cerrado.
+- **FR-032**: El sistema MUST conservar el historial de prestamos cerrados para auditoria operativa y trazabilidad.
+- **FR-033**: El sistema MUST requerir verificacion manual del estado de copyrightVigente por parte del bibliotecario al alta y modificacion del ejemplar.
+- **FR-034**: El sistema MUST disponer de un banco precargado de fotos de animales para asignacion automatica de perfil y usar foto neutral de fallback cuando no exista coincidencia por inicial.
 
 ### Non-Functional Requirements
 
 - **NFR-001 (Usabilidad)**: La interfaz MUST permitir encontrar libros disponibles en un flujo simple y comprensible para usuarios no tecnicos.
 - **NFR-002 (Claridad de informacion)**: El estado de disponibilidad MUST mostrarse de forma clara y sin ambiguedad.
-- **NFR-003 (Tiempo de respuesta)**: La consulta de disponibilidad MUST completarse en <= 2 segundos en condiciones operativas normales.
+- **NFR-003 (Tiempo de respuesta)**: Al menos el 95% de las consultas de disponibilidad MUST completarse en <= 2 segundos en condiciones operativas normales.
 - **NFR-004 (Escalabilidad)**: El sistema MUST soportar al menos 100000 libros y 10000 clientes sin degradar el objetivo de disponibilidad definido.
 - **NFR-005 (Cumplimiento legal)**: Todos los libros registrados MUST mantener estado de copyright vigente para ser prestables.
 - **NFR-006 (Calidad de arquitectura)**: Reglas de negocio y validaciones MUST estar separadas de la capa de interfaz.
@@ -134,6 +150,14 @@ Como cliente y bibliotecario, quiero consultar disponibilidad de libros y obtene
 - **Prestamo**: Representa la asignacion temporal de un ejemplar (Libro) a un cliente. Atributos clave: idEjemplar, cliente, fechaInicio, fechaFinPrevista, fechaDevolucion, estado.
 - **AsignacionFotoPerfil**: Regla de negocio que vincula inicial del nombre de pila con un animal disponible para foto de perfil.
 - **InformePrestamosActivos**: Vista de negocio que lista prestamos en estado activo con ejemplar y cliente asociado.
+
+## Responsabilidades del modelo de dominio
+
+- **Libro (Ejemplar Fisico)**: Responsable de exponer su prestabilidad segun estadoActivo, copyrightVigente y existencia de prestamo activo.
+- **Cliente**: Responsable de exponer si esta habilitado para nuevos prestamos segun estadoActivo y limite vigente configurado.
+- **Prestamo**: Responsable de gestionar transiciones de estado (activo/cerrado), prevenir devolucion duplicada y determinar si una devolucion es anticipada.
+- **Servicio de Prestamos (aplicacion)**: Responsable de orquestar validaciones cruzadas entre Libro, Cliente y Prestamo antes de confirmar prestamo o devolucion.
+- **Servicio de AsignacionFotoPerfil**: Responsable de asignar foto desde banco precargado por inicial y aplicar fallback neutral cuando no exista coincidencia.
 
 ## Success Criteria *(mandatory)*
 
