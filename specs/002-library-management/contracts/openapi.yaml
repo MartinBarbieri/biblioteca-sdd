@@ -1,0 +1,730 @@
+openapi: "3.0.3"
+
+info:
+  title: Biblioteca SDD API
+  description: |
+    API REST del sistema de gestión de biblioteca.
+    Permite administrar ejemplares, clientes, préstamos y consultar disponibilidad.
+    Trazabilidad: spec.md FR-001–FR-034, US1–US4.
+  version: "1.0.0"
+  contact:
+    name: Biblioteca SDD
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Servidor de desarrollo local
+
+tags:
+  - name: Ejemplares
+    description: "CRUD de ejemplares físicos del catálogo (FR-001–FR-007)"
+  - name: Clientes
+    description: "CRUD de clientes habilitados para préstamos (FR-008–FR-014)"
+  - name: Prestamos
+    description: "Registro de préstamos y devoluciones (FR-015–FR-022)"
+  - name: Disponibilidad
+    description: "Búsqueda e informes de disponibilidad (FR-022–FR-029)"
+
+paths:
+
+  # ─────────────────────────────────────────────
+  # EJEMPLARES
+  # ─────────────────────────────────────────────
+
+  /ejemplares:
+    get:
+      tags: [Ejemplares]
+      summary: Listar ejemplares con filtros y paginación
+      description: |
+        Devuelve ejemplares paginados. Filtros opcionales aplicados con lógica AND.
+        Sin filtros devuelve todo el catálogo paginado (FR-025, FR-026).
+        Página ≤ 0 se normaliza a 1 (FR-027). Máximo 100 por página.
+      operationId: listarEjemplares
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: titulo
+          in: query
+          description: Búsqueda parcial en título (case-insensitive)
+          schema:
+            type: string
+        - name: autor
+          in: query
+          schema:
+            type: string
+        - name: categoriaLibro
+          in: query
+          schema:
+            $ref: '#/components/schemas/CategoriaLibro'
+        - name: soloDisponibles
+          in: query
+          description: "true = solo disponibles; false = todos (FR-024, FR-025)"
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Lista paginada de ejemplares
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaEjemplares'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+
+    post:
+      tags: [Ejemplares]
+      summary: Registrar un nuevo ejemplar
+      description: "Da de alta un nuevo ejemplar físico. idEjemplar lo genera el sistema (FR-001, FR-004)."
+      operationId: crearEjemplar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EjemplarRequest'
+      responses:
+        "201":
+          description: Ejemplar creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EjemplarResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          description: Conflicto — idEjemplar duplicado (edge case)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /ejemplares/{idEjemplar}:
+    get:
+      tags: [Ejemplares]
+      summary: Obtener un ejemplar por ID
+      operationId: obtenerEjemplar
+      parameters:
+        - $ref: '#/components/parameters/IdEjemplar'
+      responses:
+        "200":
+          description: Ejemplar encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EjemplarResponse'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Ejemplares]
+      summary: Modificar datos de un ejemplar
+      description: "Actualiza campos del ejemplar. copyrightVigente se verifica manualmente (FR-002, FR-033)."
+      operationId: actualizarEjemplar
+      parameters:
+        - $ref: '#/components/parameters/IdEjemplar'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EjemplarRequest'
+      responses:
+        "200":
+          description: Ejemplar actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EjemplarResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Ejemplares]
+      summary: Dar de baja un ejemplar (baja lógica)
+      description: |
+        Marca el ejemplar como INACTIVO. Falla si tiene préstamos activos (FR-003, FR-007).
+      operationId: darBajaEjemplar
+      parameters:
+        - $ref: '#/components/parameters/IdEjemplar'
+      responses:
+        "204":
+          description: Baja registrada
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: No se puede dar de baja — ejemplar tiene préstamos activos (FR-007)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────
+  # CLIENTES
+  # ─────────────────────────────────────────────
+
+  /clientes:
+    get:
+      tags: [Clientes]
+      summary: Listar clientes
+      operationId: listarClientes
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: soloActivos
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Lista paginada de clientes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaClientes'
+
+    post:
+      tags: [Clientes]
+      summary: Registrar un nuevo cliente
+      description: |
+        Guarda nombre, apellido, DNI, fechaNacimiento. La foto de perfil se asigna
+        automáticamente por inicial del nombre (FR-008, FR-013, FR-014).
+      operationId: crearCliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClienteRequest'
+      responses:
+        "201":
+          description: Cliente creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClienteResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          description: DNI ya registrado (FR-012)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /clientes/{idCliente}:
+    get:
+      tags: [Clientes]
+      summary: Obtener un cliente por ID
+      operationId: obtenerCliente
+      parameters:
+        - $ref: '#/components/parameters/IdCliente'
+      responses:
+        "200":
+          description: Cliente encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClienteResponse'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Clientes]
+      summary: Modificar datos de un cliente
+      description: "Actualiza datos permitidos. Preserva puntosAcumulados (FR-009)."
+      operationId: actualizarCliente
+      parameters:
+        - $ref: '#/components/parameters/IdCliente'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClienteRequest'
+      responses:
+        "200":
+          description: Cliente actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClienteResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Clientes]
+      summary: Dar de baja un cliente (baja lógica)
+      description: |
+        Marca el cliente como inactivo. Solo aplicable si no tiene préstamos activos (FR-010).
+      operationId: darBajaCliente
+      parameters:
+        - $ref: '#/components/parameters/IdCliente'
+      responses:
+        "204":
+          description: Baja registrada
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: Cliente tiene préstamos activos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────
+  # PRÉSTAMOS
+  # ─────────────────────────────────────────────
+
+  /prestamos:
+    get:
+      tags: [Prestamos]
+      summary: Informe de préstamos activos
+      description: |
+        Lista todos los préstamos en estado ACTIVO con ejemplar y cliente asociado.
+        Usado para el informe operativo (FR-028, US4-Scenario 3).
+      operationId: listarPrestamosActivos
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        "200":
+          description: Lista paginada de préstamos activos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaPrestamos'
+
+    post:
+      tags: [Prestamos]
+      summary: Registrar un nuevo préstamo
+      description: |
+        Crea un préstamo si el ejemplar está disponible y el cliente está activo.
+        Verifica disponibilidad (FR-018, FR-019, FR-023, FR-030).
+      operationId: crearPrestamo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrestamoRequest'
+      responses:
+        "201":
+          description: Préstamo registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrestamoResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          description: |
+            Conflicto de negocio. El campo `codigo` indica la causa:
+            - `EJEMPLAR_NO_DISPONIBLE`: ejemplar prestado, inactivo o sin copyright
+            - `CLIENTE_INACTIVO`: cliente dado de baja
+            - `LIMITE_PRESTAMOS_ALCANZADO`: cliente superó el límite activo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /prestamos/{idPrestamo}/devolucion:
+    post:
+      tags: [Prestamos]
+      summary: Registrar devolución de un préstamo
+      description: |
+        Cierra el préstamo. Si la devolución es anterior a fechaFinPrevista, suma 10 puntos
+        al cliente. Rechaza si el préstamo ya está cerrado (FR-020, FR-021, FR-031).
+      operationId: registrarDevolucion
+      parameters:
+        - name: idPrestamo
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevolucionRequest'
+      responses:
+        "200":
+          description: Devolución registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevolucionResponse'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: Préstamo ya devuelto (devolución duplicada, FR-031)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────
+  # DISPONIBILIDAD (convenience endpoint)
+  # ─────────────────────────────────────────────
+
+  /ejemplares/{idEjemplar}/disponibilidad:
+    get:
+      tags: [Disponibilidad]
+      summary: Consultar disponibilidad de un ejemplar específico
+      description: |
+        Responde con el estado de disponibilidad de un ejemplar.
+        disponible = activo AND copyrightVigente AND sin préstamo activo (FR-022, FR-023).
+        Objetivo: 95% de respuestas ≤ 2 s (NFR-003, SC-001).
+      operationId: consultarDisponibilidad
+      parameters:
+        - $ref: '#/components/parameters/IdEjemplar'
+      responses:
+        "200":
+          description: Estado de disponibilidad
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisponibilidadResponse'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+# ─────────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────────
+
+components:
+
+  parameters:
+
+    Page:
+      name: page
+      in: query
+      description: "Número de página base-0. Valores ≤ 0 normalizan a 0 (FR-027)."
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+
+    Size:
+      name: size
+      in: query
+      description: "Tamaño de página. Máximo 100 (FR-026)."
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
+    IdEjemplar:
+      name: idEjemplar
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+    IdCliente:
+      name: idCliente
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+
+    # ── Enums ──────────────────────────────────
+
+    CategoriaLibro:
+      type: string
+      enum: [INFANTILES, JUVENILES, ADULTOS, CONOCIMIENTO]
+      description: "Categoría del ejemplar. Dominio cerrado (FR-005)."
+
+    EstadoEjemplar:
+      type: string
+      enum: [ACTIVO, INACTIVO]
+
+    EstadoPrestamo:
+      type: string
+      enum: [ACTIVO, CERRADO]
+
+    # ── Ejemplar ───────────────────────────────
+
+    EjemplarRequest:
+      type: object
+      required:
+        - titulo
+        - autor
+        - cantidadPaginas
+        - editorial
+        - isbn
+        - categoriaLibro
+        - copyrightVigente
+      properties:
+        titulo:
+          type: string
+          maxLength: 500
+        autor:
+          type: string
+          maxLength: 300
+        cantidadPaginas:
+          type: integer
+          minimum: 1
+          description: "Debe ser > 0 (edge case)"
+        editorial:
+          type: string
+          maxLength: 300
+        isbn:
+          type: string
+          maxLength: 20
+        perteneceSaga:
+          type: boolean
+          default: false
+        categoriaLibro:
+          $ref: '#/components/schemas/CategoriaLibro'
+        copyrightVigente:
+          type: boolean
+          description: "Booleano obligatorio. Verificado manualmente por el bibliotecario (FR-004, FR-033)."
+
+    EjemplarResponse:
+      allOf:
+        - $ref: '#/components/schemas/EjemplarRequest'
+        - type: object
+          properties:
+            idEjemplar:
+              type: integer
+              format: int64
+            estadoEjemplar:
+              $ref: '#/components/schemas/EstadoEjemplar'
+            disponible:
+              type: boolean
+              description: "true si estadoEjemplar=ACTIVO AND copyrightVigente=true AND sin préstamo activo (FR-023)"
+
+    PaginaEjemplares:
+      type: object
+      properties:
+        contenido:
+          type: array
+          items:
+            $ref: '#/components/schemas/EjemplarResponse'
+        pagina:
+          type: integer
+        tamanoPagina:
+          type: integer
+        totalElementos:
+          type: integer
+          format: int64
+        totalPaginas:
+          type: integer
+
+    # ── Cliente ────────────────────────────────
+
+    ClienteRequest:
+      type: object
+      required:
+        - nombre
+        - apellido
+        - dni
+        - fechaNacimiento
+      properties:
+        nombre:
+          type: string
+          maxLength: 200
+          description: "Acepta caracteres especiales válidos: apóstrofe, guion, espacios internos."
+        apellido:
+          type: string
+          maxLength: 200
+        dni:
+          type: string
+          maxLength: 20
+          description: "Debe ser único por cliente (FR-012)."
+        fechaNacimiento:
+          type: string
+          format: date
+
+    ClienteResponse:
+      allOf:
+        - $ref: '#/components/schemas/ClienteRequest'
+        - type: object
+          properties:
+            idCliente:
+              type: integer
+              format: int64
+            fotoPerfil:
+              type: string
+              description: "Ruta de foto asignada automáticamente por inicial del nombre (FR-013, FR-014)."
+            puntosAcumulados:
+              type: integer
+              minimum: 0
+            estadoActivo:
+              type: boolean
+
+    PaginaClientes:
+      type: object
+      properties:
+        contenido:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClienteResponse'
+        pagina:
+          type: integer
+        tamanoPagina:
+          type: integer
+        totalElementos:
+          type: integer
+          format: int64
+        totalPaginas:
+          type: integer
+
+    # ── Préstamo ───────────────────────────────
+
+    PrestamoRequest:
+      type: object
+      required:
+        - idEjemplar
+        - idCliente
+        - fechaInicio
+        - fechaFinPrevista
+      properties:
+        idEjemplar:
+          type: integer
+          format: int64
+        idCliente:
+          type: integer
+          format: int64
+        fechaInicio:
+          type: string
+          format: date
+        fechaFinPrevista:
+          type: string
+          format: date
+
+    PrestamoResponse:
+      type: object
+      properties:
+        idPrestamo:
+          type: integer
+          format: int64
+        idEjemplar:
+          type: integer
+          format: int64
+        tituloEjemplar:
+          type: string
+        idCliente:
+          type: integer
+          format: int64
+        nombreCliente:
+          type: string
+        fechaInicio:
+          type: string
+          format: date
+        fechaFinPrevista:
+          type: string
+          format: date
+        estadoPrestamo:
+          $ref: '#/components/schemas/EstadoPrestamo'
+
+    PaginaPrestamos:
+      type: object
+      properties:
+        contenido:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrestamoResponse'
+        pagina:
+          type: integer
+        tamanoPagina:
+          type: integer
+        totalElementos:
+          type: integer
+          format: int64
+        totalPaginas:
+          type: integer
+
+    DevolucionRequest:
+      type: object
+      required:
+        - fechaDevolucion
+      properties:
+        fechaDevolucion:
+          type: string
+          format: date
+
+    DevolucionResponse:
+      type: object
+      properties:
+        idPrestamo:
+          type: integer
+          format: int64
+        fechaDevolucion:
+          type: string
+          format: date
+        fechaFinPrevista:
+          type: string
+          format: date
+        devolucionAnticipada:
+          type: boolean
+          description: "true si fechaDevolucion < fechaFinPrevista (FR-021)"
+        puntosOtorgados:
+          type: integer
+          description: "10 si devolucionAnticipada=true, 0 si no (FR-021)"
+        puntosAcumuladosCliente:
+          type: integer
+
+    # ── Disponibilidad ─────────────────────────
+
+    DisponibilidadResponse:
+      type: object
+      properties:
+        idEjemplar:
+          type: integer
+          format: int64
+        titulo:
+          type: string
+        disponible:
+          type: boolean
+          description: "estadoEjemplar=ACTIVO AND copyrightVigente=true AND sin préstamo activo (FR-023)"
+        motivo:
+          type: string
+          description: |
+            Razón de no disponibilidad cuando disponible=false.
+            Valores: INACTIVO | COPYRIGHT_NO_VIGENTE | PRESTADO
+          nullable: true
+
+    # ── Error ──────────────────────────────────
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        codigo:
+          type: string
+          description: "Código de error de negocio (ej: EJEMPLAR_NO_DISPONIBLE, DNI_DUPLICADO)"
+        mensaje:
+          type: string
+
+  responses:
+
+    BadRequest:
+      description: Solicitud inválida — validación fallida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
